@@ -18,5 +18,7 @@ COPY --from=builder /app/target/*.jar app.jar
 
 USER app
 EXPOSE 8080
-ENV JAVA_OPTS=""
+
+# Cố định giới hạn RAM tối đa 256MB để không vượt quá giới hạn 512MB của Render Free Tier
+ENV JAVA_OPTS="-Xms64m -Xmx256m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m"
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
