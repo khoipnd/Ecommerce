@@ -33,4 +33,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
     }
+
+    // 500: general server exception handler (trả về JSON chi tiết thay vì HTML 500)
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGeneralException(Exception ex) {
+        String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", msg));
+    }
 }

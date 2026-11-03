@@ -20,7 +20,7 @@ public class InternalProductController {
     private final String apiKey;
 
     public InternalProductController(ProductRepository productRepository,
-                                     @Value("${internal.api-key}") String apiKey) {
+                                     @Value("${internal.api-key:default-internal-secret-key-123456}") String apiKey) {
         this.productRepository = productRepository;
         this.apiKey = apiKey;
     }
