@@ -1,0 +1,148 @@
+# ====================================================
+# Render Blueprint (render.yaml)
+# Hướng dẫn: Đẩy file này lên GitHub, vào Render Dashboard chọn New -> Blueprint
+# ====================================================
+
+services:
+  # ----------------------------------------------------
+  # 1. API GATEWAY (Web Service - Public Entry Point)
+  # Cổng giao tiếp duy nhất cho Frontend gọi vào
+  # ----------------------------------------------------
+  - type: web
+    name: ecommerce-api-gateway
+    runtime: docker
+    rootDir: api-gateway
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xms128m -Xmx256m -XX:+UseG1GC"
+      # Địa chỉ các service trên Render (hoặc private URL nếu dùng gói có phí)
+      - key: AUTH_SERVICE_URL
+        value: "https://ecommerce-auth-service.onrender.com"
+      - key: CATEGORY_SERVICE_URL
+        value: "https://ecommerce-category-service.onrender.com"
+      - key: ORDER_SERVICE_URL
+        value: "https://ecommerce-order-service.onrender.com"
+      - key: PRODUCT_SERVICE_URL
+        value: "https://ecommerce-product-service.onrender.com"
+      # Điền domain frontend đã deploy (ví dụ: https://my-shop.vercel.app)
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: "http://localhost:5173,https://your-frontend.vercel.app"
+
+  # ----------------------------------------------------
+  # 2. AUTH SERVICE (Web Service)
+  # ----------------------------------------------------
+  - type: web
+    name: ecommerce-auth-service
+    runtime: docker
+    rootDir: auth-service
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 8081
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xms128m -Xmx256m -XX:+UseG1GC"
+      # Chuỗi kết nối SQL Server (Azure SQL / Cloud SQL / VPS)
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        value: "jwtsecretkeyatleast32charactershahalonglongsecret"
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: "http://localhost:5173,https://your-frontend.vercel.app"
+
+  # ----------------------------------------------------
+  # 3. CATEGORY SERVICE (Web Service)
+  # ----------------------------------------------------
+  - type: web
+    name: ecommerce-category-service
+    runtime: docker
+    rootDir: category-service
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 8082
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xms128m -Xmx256m -XX:+UseG1GC"
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: AUTH_SERVICE_URL
+        value: "https://ecommerce-auth-service.onrender.com"
+      - key: PRODUCT_SERVICE_URL
+        value: "https://ecommerce-product-service.onrender.com"
+      - key: INTERNAL_API_KEY
+        value: "123456"
+
+  # ----------------------------------------------------
+  # 4. PRODUCT SERVICE (Web Service)
+  # ----------------------------------------------------
+  - type: web
+    name: ecommerce-product-service
+    runtime: docker
+    rootDir: product-service
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 8084
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xms128m -Xmx256m -XX:+UseG1GC"
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: AUTH_SERVICE_URL
+        value: "https://ecommerce-auth-service.onrender.com"
+      - key: CATEGORY_SERVICE_URL
+        value: "https://ecommerce-category-service.onrender.com"
+      - key: INTERNAL_API_KEY
+        value: "123456"
+
+  # ----------------------------------------------------
+  # 5. ORDER SERVICE (Web Service)
+  # ----------------------------------------------------
+  - type: web
+    name: ecommerce-order-service
+    runtime: docker
+    rootDir: order-service
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 8083
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xms128m -Xmx256m -XX:+UseG1GC"
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: PRODUCT_SERVICE_URL
+        value: "https://ecommerce-product-service.onrender.com"
+      - key: JWT_SECRET
+        value: "jwtsecretkeyatleast32charactershahalonglongsecret"
+      - key: INTERNAL_API_KEY
+        value: "123456"
+

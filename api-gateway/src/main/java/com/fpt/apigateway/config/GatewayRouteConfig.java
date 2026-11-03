@@ -1,5 +1,6 @@
 package com.fpt.apigateway.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.RouterFunction;
@@ -13,10 +14,21 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class GatewayRouteConfig {
 
-    // =========================
-    // AUTH SERVICE - PORT 8081
-    // =========================
+    @Value("${auth-service.url:http://localhost:8081}")
+    private String authServiceUrl;
 
+    @Value("${category-service.url:http://localhost:8082}")
+    private String categoryServiceUrl;
+
+    @Value("${order-service.url:http://localhost:8083}")
+    private String orderServiceUrl;
+
+    @Value("${product-service.url:http://localhost:8084}")
+    private String productServiceUrl;
+
+    // =========================
+    // AUTH SERVICE
+    // =========================
     @Bean
     public RouterFunction<ServerResponse> authRoute() {
         return route("auth-service")
@@ -26,16 +38,14 @@ public class GatewayRouteConfig {
                                         || request.path().startsWith("/api/v1/users"),
                         http()
                 )
-                .before(uri("http://localhost:8081"))
+                .before(uri(authServiceUrl))
                 .before(removeRequestHeader("Origin"))
                 .build();
     }
 
-
     // =========================
-    // CATEGORY SERVICE - PORT 8082
+    // CATEGORY SERVICE
     // =========================
-
     @Bean
     public RouterFunction<ServerResponse> categoryRoute() {
         return route("category-service")
@@ -44,16 +54,14 @@ public class GatewayRouteConfig {
                                 request.path().startsWith("/api/v1/categories"),
                         http()
                 )
-                .before(uri("http://localhost:8082"))
+                .before(uri(categoryServiceUrl))
                 .before(removeRequestHeader("Origin"))
                 .build();
     }
 
-
     // =========================
-    // ORDER SERVICE - PORT 8083
+    // ORDER SERVICE
     // =========================
-
     @Bean
     public RouterFunction<ServerResponse> orderRoute() {
         return route("order-service")
@@ -63,16 +71,14 @@ public class GatewayRouteConfig {
                                         || request.path().startsWith("/api/v1/admin/orders"),
                         http()
                 )
-                .before(uri("http://localhost:8083"))
+                .before(uri(orderServiceUrl))
                 .before(removeRequestHeader("Origin"))
                 .build();
     }
 
-
     // =========================
-    // PRODUCT SERVICE - PORT 8084
+    // PRODUCT SERVICE
     // =========================
-
     @Bean
     public RouterFunction<ServerResponse> productRoute() {
         return route("product-service")
@@ -81,7 +87,7 @@ public class GatewayRouteConfig {
                                 request.path().startsWith("/api/v1/products"),
                         http()
                 )
-                .before(uri("http://localhost:8084"))
+                .before(uri(productServiceUrl))
                 .before(removeRequestHeader("Origin"))
                 .build();
     }
