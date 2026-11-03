@@ -1,0 +1,55 @@
+services:
+
+  order-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: order-db
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${ORDER_DB_PASSWORD:-Order@12345}
+      MSSQL_PID: Developer
+
+    ports:
+      - "1435:1433"
+
+    volumes:
+      - order-db-data:/var/opt/mssql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${ORDER_DB_PASSWORD:-Order@12345}' -C -Q 'SELECT 1' || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  order-service:
+    build: .
+    container_name: order-service
+
+    depends_on:
+      order-db:
+        condition: service_healthy
+
+    ports:
+      - "8083:8083"
+
+    environment:
+      SPRING_APPLICATION_NAME: order-service
+      SERVER_PORT: 8083
+
+      SPRING_DATASOURCE_URL: "jdbc:sqlserver://order-db:1433;databaseName=Ecommerce_Order;encrypt=true;trustServerCertificate=true"
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ${ORDER_DB_PASSWORD:-Order@12345}
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_OPEN_IN_VIEW: "false"
+
+      # Product Service chạy ngoài Docker / IntelliJ
+      PRODUCT_SERVICE_URL: http://host.docker.internal:8084
+
+volumes:
+  order-db-data:

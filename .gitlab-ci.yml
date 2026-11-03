@@ -1,0 +1,153 @@
+stages:
+  - test
+  - build
+  - docker
+  - publish
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
+
+.maven-cache:
+  cache:
+    key: "maven-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .m2/repository/
+
+.backend-matrix:
+  parallel:
+    matrix:
+      - SERVICE_DIR:
+          - auth-service
+          - category-service
+          - product-service
+
+.docker-job:
+  image: docker:27
+  services:
+    - name: docker:27-dind
+      alias: docker
+  before_script:
+    - docker info
+
+backend-test:
+  stage: test
+  image: maven:3.9-eclipse-temurin-17
+  extends:
+    - .maven-cache
+    - .backend-matrix
+  script:
+    - mvn --batch-mode --no-transfer-progress -f "$SERVICE_DIR/pom.xml" test
+
+order-service-test:
+  stage: test
+  image: maven:3.9-eclipse-temurin-17
+  extends: .maven-cache
+  script:
+    - mvn --batch-mode --no-transfer-progress -f order-service/pom.xml test
+
+frontend-test:
+  stage: test
+  image: node:22
+  cache:
+    key: "npm-$CI_COMMIT_REF_SLUG"
+    paths:
+      - frontend/.npm/
+  script:
+    - cd frontend
+    - npm ci --cache .npm --prefer-offline
+    - npm run lint
+
+backend-build:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  extends:
+    - .maven-cache
+    - .backend-matrix
+  script:
+    - mvn --batch-mode --no-transfer-progress -f "$SERVICE_DIR/pom.xml" clean package
+  artifacts:
+    name: "$SERVICE_DIR-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - $SERVICE_DIR/target/*.jar
+    expire_in: 1 week
+
+order-service-build:
+  stage: build
+  image: maven:3.9-eclipse-temurin-17
+  extends: .maven-cache
+  script:
+    - mvn --batch-mode --no-transfer-progress -f order-service/pom.xml clean package
+  artifacts:
+    name: "order-service-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - order-service/target/*.jar
+    expire_in: 1 week
+
+frontend-build:
+  stage: build
+  image: node:22
+  cache:
+    key: "npm-$CI_COMMIT_REF_SLUG"
+    paths:
+      - frontend/.npm/
+  script:
+    - cd frontend
+    - npm ci --cache .npm --prefer-offline
+    - npm run build
+  artifacts:
+    name: "frontend-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - frontend/dist/
+    expire_in: 1 week
+
+docker-build:
+  stage: docker
+  extends: .docker-job
+  parallel:
+    matrix:
+      - SERVICE_DIR:
+          - auth-service
+          - category-service
+          - product-service
+          - frontend
+  script:
+    - docker build --pull -t "$SERVICE_DIR:$CI_COMMIT_SHORT_SHA" "$SERVICE_DIR"
+
+order-service-docker-build:
+  stage: docker
+  extends: .docker-job
+  script:
+    - docker build --pull -f order-service/Dockerfile -t "order-service:$CI_COMMIT_SHORT_SHA" order-service
+
+publish-images:
+  stage: publish
+  extends: .docker-job
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  parallel:
+    matrix:
+      - SERVICE_DIR:
+          - auth-service
+          - category-service
+          - product-service
+          - frontend
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - export IMAGE_TAG="$CI_REGISTRY_IMAGE/$SERVICE_DIR:$CI_COMMIT_SHORT_SHA"
+    - docker build --pull -t "$IMAGE_TAG" -t "$CI_REGISTRY_IMAGE/$SERVICE_DIR:latest" "$SERVICE_DIR"
+    - docker push "$IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/$SERVICE_DIR:latest"
+
+order-service-publish:
+  stage: publish
+  extends: .docker-job
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - export IMAGE_TAG="$CI_REGISTRY_IMAGE/order-service:$CI_COMMIT_SHORT_SHA"
+    - docker build --pull -f order-service/Dockerfile -t "$IMAGE_TAG" -t "$CI_REGISTRY_IMAGE/order-service:latest" order-service
+    - docker push "$IMAGE_TAG"
+    - docker push "$CI_REGISTRY_IMAGE/order-service:latest"

@@ -1,0 +1,59 @@
+services:
+
+  product-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: product-db
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD}
+      MSSQL_PID: Developer
+
+    ports:
+      - "1435:1433"
+
+    volumes:
+      - product-db-data:/var/opt/mssql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD}' -C -Q 'SELECT 1' || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+
+  product-service:
+    build: .
+
+    container_name: product-service
+
+    depends_on:
+      product-db:
+        condition: service_healthy
+
+    ports:
+      - "8084:8084"
+
+    environment:
+      SPRING_APPLICATION_NAME: product-service
+      SERVER_PORT: 8084
+
+      SPRING_DATASOURCE_URL: "jdbc:sqlserver://product-db:1433;databaseName=Ecommerce_Products;encrypt=true;trustServerCertificate=true"
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set PRODUCT_DB_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY}
+      AUTH_SERVICE_URL: http://host.docker.internal:8081
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_OPEN_IN_VIEW: "false"
+
+      # Khi product-service chạy ngoài Docker
+      CATEGORY_SERVICE_URL: http://host.docker.internal:8082
+
+
+volumes:
+  product-db-data:

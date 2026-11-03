@@ -1,0 +1,52 @@
+services:
+
+  category-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: category-db
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${CATEGORY_DB_PASSWORD:?Set CATEGORY_DB_PASSWORD}
+      MSSQL_PID: Developer
+
+    ports:
+      - "1434:1433"
+
+    volumes:
+      - category-db-data:/var/opt/mssql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${CATEGORY_DB_PASSWORD:?Set CATEGORY_DB_PASSWORD}' -C -Q 'SELECT 1' || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  category-service:
+    build: .
+    container_name: category-service
+
+    depends_on:
+      category-db:
+        condition: service_healthy
+
+    ports:
+      - "8082:8082"
+
+    environment:
+      SPRING_APPLICATION_NAME: category-service
+      SERVER_PORT: 8082
+
+      SPRING_DATASOURCE_URL: "jdbc:sqlserver://category-db:1433;databaseName=Ecommerce_Category;encrypt=true;trustServerCertificate=true"
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ${CATEGORY_DB_PASSWORD:?Set CATEGORY_DB_PASSWORD}
+      AUTH_SERVICE_URL: http://host.docker.internal:8081
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_JPA_OPEN_IN_VIEW: "false"
+
+volumes:
+  category-db-data:

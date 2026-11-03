@@ -1,0 +1,105 @@
+services:
+  # ====================================================
+  # 1. Database Service (Microsoft SQL Server 2022)
+  # ====================================================
+  database:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ecommerce-database
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}\" -Q 'SELECT 1'"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - ecommerce-net
+
+  # ====================================================
+  # 1.1 Database Auto-Init (Tự động tạo Database & Schema nếu chưa có)
+  # ====================================================
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ecommerce-db-init
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./Database:/sql:ro
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}"
+    entrypoint: >
+      /bin/bash -c "
+      echo 'Đang khởi tạo Database Ecommerce...'
+      /opt/mssql-tools18/bin/sqlcmd -S database -U sa -P \"$${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}\" -C -Q 'IF DB_ID(\"Ecommerce\") IS NULL CREATE DATABASE Ecommerce;'
+      /opt/mssql-tools18/bin/sqlcmd -S database -U sa -P \"$${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}\" -C -i /sql/REST_API_V2_Migration.sql || true
+      echo 'Khởi tạo Database Ecommerce hoàn tất!'
+      "
+    networks:
+      - ecommerce-net
+
+  # ====================================================
+  # 2. Backend Service (Spring Boot / Java 17)
+  # ====================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecommerce-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:sqlserver://database:1433;databaseName=Ecommerce;encrypt=true;trustServerCertificate=true
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}"
+      SERVER_PORT: "8080"
+      APP_CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:5174,http://localhost:80,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:80,http://localhost,http://127.0.0.1"
+    depends_on:
+      database:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    networks:
+      - ecommerce-net
+
+  # ====================================================
+  # 3. Frontend Service (React + Vite + Nginx)
+  # ====================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ecommerce-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - ecommerce-net
+
+# ====================================================
+# Volumes & Networks
+# ====================================================
+volumes:
+  mssql_data:
+    driver: local
+
+networks:
+  ecommerce-net:
+    driver: bridge
